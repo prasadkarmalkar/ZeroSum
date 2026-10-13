@@ -1,5 +1,6 @@
 package com.zerosum.zerosum.common;
 
+import java.math.BigDecimal;
 import java.util.Currency;
 import java.util.Objects;
 
@@ -49,6 +50,13 @@ public record Money(long amountMinor, Currency currency) {
 
 	public boolean isPositive() {
 		return amountMinor > 0L;
+	}
+
+	/** Human-readable form, e.g. {@code 10.50 INR}. */
+	@Override
+	public String toString() {
+		int scale = Math.max(currency.getDefaultFractionDigits(), 0);
+		return BigDecimal.valueOf(amountMinor, scale).toPlainString() + " " + currency.getCurrencyCode();
 	}
 
 	private void requireSameCurrency(Money other) {

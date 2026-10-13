@@ -20,6 +20,13 @@ class MoneyTest {
 	}
 
 	@Test
+	void printsAsDecimalWithCurrencyCode() {
+		assertEquals("10.50 INR", Money.of(1050, "INR").toString());
+		assertEquals("-0.05 USD", Money.of(-5, "USD").toString());
+		assertEquals("150 JPY", Money.of(150, "JPY").toString());
+	}
+
+	@Test
 	void rejectsNullAndUnknownCurrency() {
 		assertThrows(NullPointerException.class, () -> new Money(1, null));
 		assertThrows(NullPointerException.class, () -> Money.of(1, null));

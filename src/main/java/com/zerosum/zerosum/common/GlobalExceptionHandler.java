@@ -31,13 +31,21 @@ import java.util.List;
 @RestControllerAdvice
 public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
+	private static final String GENERIC_500_DETAIL = "An unexpected error occurred. Please try again later.";
+
 	/** One invalid field (or parameter) and why it was rejected. */
 	public record FieldViolation(String field, String message) {
 	}
 
+	/** Domain errors. 5xx ones are our bugs, so their detail is logged rather than sent to the client. */
 	@ExceptionHandler(ApiException.class)
 	public ProblemDetail handleApiException(ApiException ex) {
-		ProblemDetail problem = ProblemDetail.forStatusAndDetail(ex.getStatus(), ex.getMessage());
+		String detail = ex.getMessage();
+		if (ex.getStatus().is5xxServerError()) {
+			log.error("Server-side domain error {}", ex.getErrorCode(), ex);
+			detail = GENERIC_500_DETAIL;
+		}
+		ProblemDetail problem = ProblemDetail.forStatusAndDetail(ex.getStatus(), detail);
 		problem.setTitle(ex.getTitle());
 		problem.setProperty("errorCode", ex.getErrorCode());
 		return problem;
@@ -75,8 +83,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 		}
 		log.error("Unhandled exception for {} {}", request.getMethod(), request.getRequestURI(), ex);
 
-		ProblemDetail problem = ProblemDetail.forStatusAndDetail(
-				HttpStatus.INTERNAL_SERVER_ERROR, "An unexpected error occurred. Please try again later.");
+		ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.INTERNAL_SERVER_ERROR, GENERIC_500_DETAIL);
 		problem.setTitle("Internal server error");
 		problem.setProperty("errorCode", "INTERNAL_ERROR");
 		return problem;

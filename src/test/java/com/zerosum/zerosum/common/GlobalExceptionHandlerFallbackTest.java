@@ -1,5 +1,7 @@
 package com.zerosum.zerosum.common;
 
+import com.zerosum.zerosum.ledger.exception.InsufficientFundsException;
+import com.zerosum.zerosum.ledger.exception.UnbalancedTransactionException;
 import jakarta.servlet.ServletException;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
@@ -10,6 +12,8 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.UUID;
 
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.containsString;
@@ -43,7 +47,19 @@ class GlobalExceptionHandlerFallbackTest {
 		void create(@RequestBody Body body) {
 		}
 
+		@PostMapping("/transfers")
+		void transfer() {
+			throw new InsufficientFundsException(ACCOUNT_ID, Money.of(500, "INR"), Money.of(1000, "INR"));
+		}
+
+		@PostMapping("/transfers/unbalanced")
+		void unbalancedTransfer() {
+			throw new UnbalancedTransactionException(Money.of(1, "INR"));
+		}
+
 	}
+
+	private static final UUID ACCOUNT_ID = UUID.fromString("00000000-0000-0000-0000-000000000042");
 
 	private final MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new TestController())
 			.setControllerAdvice(new GlobalExceptionHandler())
@@ -57,6 +73,27 @@ class GlobalExceptionHandlerFallbackTest {
 				.andExpect(jsonPath("$.errorCode").value("INTERNAL_ERROR"))
 				.andExpect(jsonPath("$.detail").value("An unexpected error occurred. Please try again later."))
 				.andExpect(content().string(not(containsString("secret"))));
+	}
+
+	@Test
+	void domainExceptionReturnsItsProblemDetail() throws Exception {
+		mockMvc.perform(post("/transfers"))
+				.andExpect(status().isUnprocessableContent())
+				.andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
+				.andExpect(jsonPath("$.status").value(422))
+				.andExpect(jsonPath("$.title").value("Insufficient funds"))
+				.andExpect(jsonPath("$.errorCode").value("INSUFFICIENT_FUNDS"))
+				.andExpect(jsonPath("$.detail").value(
+						"Account 00000000-0000-0000-0000-000000000042 has 5.00 INR available but 10.00 INR was requested"));
+	}
+
+	@Test
+	void serverSideDomainExceptionHidesItsDetail() throws Exception {
+		mockMvc.perform(post("/transfers/unbalanced"))
+				.andExpect(status().isInternalServerError())
+				.andExpect(jsonPath("$.errorCode").value("LEDGER_INVARIANT_VIOLATED"))
+				.andExpect(jsonPath("$.detail").value("An unexpected error occurred. Please try again later."))
+				.andExpect(content().string(not(containsString("sum to"))));
 	}
 
 	@Test
