@@ -88,6 +88,47 @@ src/
 └── test/java/com/zerosum/zerosum/   # tests
 ```
 
+## Error codes
+
+Every error response is an RFC 9457 `ProblemDetail` with an extra `errorCode` field.
+Clients should branch on `errorCode`, not on `title` or `detail`, which are for humans and may change.
+
+```json
+{
+  "type": "about:blank",
+  "title": "Insufficient funds",
+  "status": 422,
+  "detail": "Account 3f2c… has 5.00 INR available but 10.00 INR was requested",
+  "errorCode": "INSUFFICIENT_FUNDS"
+}
+```
+
+### Domain errors
+
+Each exception extends `common.ApiException` and lives in its owning module's `exception` package.
+
+| Code                        | Status | Exception                          | Module    | Meaning                                                    |
+|-----------------------------|--------|------------------------------------|-----------|------------------------------------------------------------|
+| `EMAIL_ALREADY_REGISTERED`  | 409    | `EmailAlreadyRegisteredException`  | `auth`    | Sign-up with an email that already has an account          |
+| `INVALID_CREDENTIALS`       | 401    | `InvalidCredentialsException`      | `auth`    | Wrong email or password                                    |
+| `INVALID_REFRESH_TOKEN`     | 401    | `InvalidRefreshTokenException`     | `auth`    | Refresh token is invalid, expired or revoked               |
+| `ACCOUNT_NOT_FOUND`         | 404    | `AccountNotFoundException`         | `account` | No account with the given id                               |
+| `INSUFFICIENT_FUNDS`        | 422    | `InsufficientFundsException`       | `ledger`  | Source account balance is lower than the requested amount  |
+| `SELF_TRANSFER_NOT_ALLOWED` | 422    | `SelfTransferNotAllowedException`  | `ledger`  | Source and destination account are the same                |
+| `IDEMPOTENCY_KEY_REUSED`    | 409    | `IdempotencyKeyReusedException`    | `ledger`  | Idempotency key already used with a different request body |
+| `LEDGER_INVARIANT_VIOLATED` | 500    | `UnbalancedTransactionException`   | `ledger`  | A transaction's entries don't sum to zero (a bug on our side) |
+
+### Generic errors
+
+| Code                | Status | When                                                                      |
+|---------------------|--------|---------------------------------------------------------------------------|
+| `VALIDATION_FAILED` | 400    | Bean Validation failed; `errors` lists each `field` and its `message`    |
+| `INTERNAL_ERROR`    | 500    | Any unexpected exception; the stack trace is logged, never returned       |
+
+Spring MVC's own errors (unknown route, unsupported method, malformed JSON, …) keep Spring's
+standard 4xx `ProblemDetail` without an `errorCode`. Spring Security's 401/403 responses are
+produced by Spring Security, not by the exception handler.
+
 ## Contributing
 
 _TODO_
