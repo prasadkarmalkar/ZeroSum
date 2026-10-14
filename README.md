@@ -100,6 +100,10 @@ src/
 3. Send it on every other request as `Authorization: Bearer <accessToken>`.
    In Swagger UI, click **Authorize** and paste the token (without `Bearer `).
 
+Every path under `/admin` (currently `POST /admin/deposits`) also requires the `ADMIN` role; a signed-in
+user without it gets `403 ACCESS_DENIED`. The admin user is seeded on startup from `zerosum.admin.*`, and
+no endpoint can create another one.
+
 Tokens are signed with RS256 (`jwt.private-key` / `jwt.public-key`) and valid for
 `jwt.access-token-ttl` (1 hour). A wrong password and an unknown email both return the same
 `401 INVALID_CREDENTIALS`, so the API never reveals which emails are registered.
@@ -120,10 +124,10 @@ server-side (the reserved `INVALID_REFRESH_TOKEN` code), which can be revoked on
 
 ## Idempotent transfers
 
-Networks fail. A client that sends `POST /transfers` and never sees the response can't know whether
-the money moved, so it must be able to **retry safely**. Every transfer therefore requires an
-`Idempotency-Key` header: a value the client picks once per transfer (a fresh UUID is ideal, at most
-255 characters) and reuses on every retry of that same transfer.
+Networks fail. A client that sends `POST /transfers` or `POST /admin/deposits` and never sees the
+response can't know whether the money moved, so it must be able to **retry safely**. Every
+money-moving request therefore requires an `Idempotency-Key` header: a value the client picks once
+per operation (a fresh UUID is ideal, at most 255 characters) and reuses on every retry of it.
 
 ```http
 POST /transfers
@@ -143,10 +147,14 @@ Idempotency-Key: 3f1c2e9a-8b7d-4c1e-9f0a-6d2b5e8c4a71
 
 **How it works**
 
+- The logic lives in one place, `ledger.service.IdempotencyService`, used by both `TransferService` and
+  `DepositService`.
 - Keys live in the `idempotency_keys` table, owned by the ledger module, with a unique constraint on
   **(user, key)**: keys are scoped per user, so two users can't collide or see each other's results.
-- Each row stores a **fingerprint** of the request: a SHA-256 of the normalized recipient email, the amount
-  in minor units and the description (blank means `"Transfer"`). Requests that mean the same transfer
+- Each row stores a **fingerprint** of the request: a SHA-256 of the operation (`TRANSFER` or `DEPOSIT`),
+  the normalized recipient email, the amount in minor units and the description (blank means the default,
+  `"Transfer"` or `"Deposit"`). Including the operation means a key used for a transfer can't be replayed
+  as a deposit; that's a `409`. Requests that mean the same transfer
   match even if spelled differently (`BOB@Example.com` / `bob@example.com`, `"100"` / `"100.00"`).
   It also stores the transaction id and the original response body to replay.
 - The key row is inserted **before** the transfer runs and completed in the **same** database transaction.

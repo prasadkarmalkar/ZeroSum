@@ -57,6 +57,19 @@ public class AccountService {
 	}
 
 	/**
+	 * The id of a system account, e.g. {@link Account#TREASURY}.
+	 *
+	 * @throws IllegalStateException if it doesn't exist: system accounts are seeded on startup, so this is a
+	 *                               server misconfiguration (a 500), not something the client did wrong
+	 */
+	@Transactional(readOnly = true)
+	public Long getSystemAccountId(String systemCode) {
+		return accountRepository.findBySystemCode(systemCode)
+				.map(Account::getId)
+				.orElseThrow(() -> new IllegalStateException("System account " + systemCode + " does not exist"));
+	}
+
+	/**
 	 * Finds the account of the user with this email (matched ignoring case), resolving the user through
 	 * the auth module's public {@link UserLookup}.
 	 *

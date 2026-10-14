@@ -34,6 +34,8 @@ public class SecurityConfig {
 				.authorizeHttpRequests(auth -> auth
 						.requestMatchers(PUBLIC_ENDPOINTS).permitAll()
 						.requestMatchers(HttpMethod.POST, "/auth/register", "/auth/login").permitAll()
+						// Admin operations (deposits, later the trial balance): ADMIN role only, else 403
+						.requestMatchers("/admin/**").hasRole("ADMIN")
 						.anyRequest().authenticated())
 				.oauth2ResourceServer(oauth2 -> oauth2
 						.jwt(jwt -> jwt.decoder(jwtDecoder)

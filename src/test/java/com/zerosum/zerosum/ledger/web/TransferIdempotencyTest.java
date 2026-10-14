@@ -14,7 +14,7 @@ import com.zerosum.zerosum.ledger.domain.TransactionType;
 import com.zerosum.zerosum.ledger.exception.IdempotencyKeyReusedException;
 import com.zerosum.zerosum.ledger.service.LedgerService;
 import com.zerosum.zerosum.ledger.service.TransferService;
-import com.zerosum.zerosum.ledger.service.TransferService.TransferResult;
+import com.zerosum.zerosum.ledger.service.IdempotentResult;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -239,13 +239,13 @@ class TransferIdempotencyTest {
 			String key = "race-" + round;
 			TransferRequest request = new TransferRequest("bob@example.com", "10.00", "Race " + round);
 
-			List<TransferResult> results = race(
+			List<IdempotentResult<TransferResponse>> results = race(
 					() -> transferService.transfer(alice.getId(), key, request),
 					() -> transferService.transfer(alice.getId(), key, request));
 
 			assertThat(results).hasSize(2);
 			assertThat(results.get(0).response()).isEqualTo(results.get(1).response());
-			assertThat(results).extracting(TransferResult::replayed).containsExactlyInAnyOrder(false, true);
+			assertThat(results).extracting(IdempotentResult::replayed).containsExactlyInAnyOrder(false, true);
 		}
 
 		assertThat(transferCount()).isEqualTo(10);
@@ -262,7 +262,7 @@ class TransferIdempotencyTest {
 				() -> transferService.transfer(alice.getId(), "contested", ten),
 				() -> transferService.transfer(alice.getId(), "contested", twenty));
 
-		assertThat(outcomes).filteredOn(TransferResult.class::isInstance).hasSize(1);
+		assertThat(outcomes).filteredOn(IdempotentResult.class::isInstance).hasSize(1);
 		assertThat(outcomes).filteredOn(IdempotencyKeyReusedException.class::isInstance).hasSize(1);
 		assertThat(transferCount()).isEqualTo(1);
 	}
@@ -282,23 +282,23 @@ class TransferIdempotencyTest {
 	}
 
 	@SafeVarargs
-	private List<TransferResult> race(Callable<TransferResult>... tasks) throws Exception {
-		List<TransferResult> results = new ArrayList<>();
+	private List<IdempotentResult<TransferResponse>> race(Callable<IdempotentResult<TransferResponse>>... tasks) throws Exception {
+		List<IdempotentResult<TransferResponse>> results = new ArrayList<>();
 		for (Object outcome : raceAllowingFailure(tasks)) {
 			if (outcome instanceof Throwable t) {
 				throw new AssertionError("A racing request failed", t);
 			}
-			results.add((TransferResult) outcome);
+			results.add((IdempotentResult<TransferResponse>) outcome);
 		}
 		return results;
 	}
 
 	/** Starts all tasks at the same moment; each outcome is its result or the exception it threw. */
 	@SafeVarargs
-	private List<Object> raceAllowingFailure(Callable<TransferResult>... tasks) throws Exception {
+	private List<Object> raceAllowingFailure(Callable<IdempotentResult<TransferResponse>>... tasks) throws Exception {
 		CountDownLatch start = new CountDownLatch(1);
-		List<Future<TransferResult>> futures = new ArrayList<>();
-		for (Callable<TransferResult> task : tasks) {
+		List<Future<IdempotentResult<TransferResponse>>> futures = new ArrayList<>();
+		for (Callable<IdempotentResult<TransferResponse>> task : tasks) {
 			futures.add(threads.submit(() -> {
 				start.await();
 				return task.call();
@@ -307,7 +307,7 @@ class TransferIdempotencyTest {
 		start.countDown();
 
 		List<Object> outcomes = new ArrayList<>();
-		for (Future<TransferResult> future : futures) {
+		for (Future<IdempotentResult<TransferResponse>> future : futures) {
 			try {
 				outcomes.add(future.get(10, TimeUnit.SECONDS));
 			} catch (ExecutionException e) {
