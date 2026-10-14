@@ -1,18 +1,26 @@
 package com.zerosum.zerosum.auth.service;
 
+import com.nimbusds.jose.JWSHeader;
 import com.zerosum.zerosum.auth.exception.EmailAlreadyRegisteredException;
 import com.zerosum.zerosum.auth.repository.UserRepository;
-import com.zerosum.zerosum.auth.web.RegisterRequest;
-import com.zerosum.zerosum.auth.web.Role;
-import com.zerosum.zerosum.auth.web.User;
+import com.zerosum.zerosum.auth.web.*;
 import com.zerosum.zerosum.common.event.UserRegisteredEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.jose.jws.SignatureAlgorithm;
+import org.springframework.security.oauth2.jwt.JwsHeader;
+import org.springframework.security.oauth2.jwt.JwtClaimsSet;
+import org.springframework.security.oauth2.jwt.JwtEncoder;
+import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.time.Instant;
+import java.util.List;
+import java.util.UUID;
 
 @Slf4j
 @Service
@@ -22,6 +30,8 @@ public class AuthService {
 	private final UserRepository userRepository;
 	private final PasswordEncoder passwordEncoder;
 	private final ApplicationEventPublisher eventPublisher;
+	private final JwtEncoder jwtEncoder;
+	private final JWTProperty jwtProperty;
 
 	/**
 	 * Registers a new user with the {@link Role#USER} role and publishes a {@link UserRegisteredEvent}.
@@ -50,6 +60,27 @@ public class AuthService {
 		eventPublisher.publishEvent(new UserRegisteredEvent(user.getId()));
 		log.info("Registered user {}", user.getId());
 		return user;
+	}
+
+	public AccessToken issueAccessToken(User user) {
+		Instant now = Instant.now();
+		Instant expiresAt = now.plus(jwtProperty.accessTokenTtl());
+		JwtClaimsSet claims = JwtClaimsSet.builder()
+				.issuer(jwtProperty.issuer())
+				.subject(user.getId().toString())
+				.issuedAt(now)
+				.expiresAt(expiresAt)
+				.id(UUID.randomUUID().toString())
+				.claim("email", user.getEmail())
+				.claim("roles", List.of(user.getRole().name()))
+				.build();
+
+		JwsHeader header = JwsHeader.with(SignatureAlgorithm.RS256).build();
+
+		String token = jwtEncoder
+				.encode(JwtEncoderParameters.from(header, claims))
+				.getTokenValue();
+		return new AccessToken(token, expiresAt);
 	}
 
 }
