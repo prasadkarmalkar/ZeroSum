@@ -44,6 +44,9 @@ import java.util.Objects;
 @NoArgsConstructor(access = AccessLevel.PROTECTED) // for JPA only
 public class Account {
 
+	/** Code of the system account that deposits are paid out of; its balance goes negative by design. */
+	public static final String TREASURY = "TREASURY";
+
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	private Long id;

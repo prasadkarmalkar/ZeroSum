@@ -29,4 +29,12 @@ public class AccountService {
 		return account;
 	}
 
+	/** Opens a system account, e.g. {@link Account#TREASURY}, in the project currency with a zero balance. */
+	@Transactional
+	public Account openSystemAccount(String systemCode) {
+		Account account = accountRepository.saveAndFlush(Account.system(systemCode, properties.currency()));
+		log.info("Opened system account {} ({})", account.getId(), systemCode);
+		return account;
+	}
+
 }

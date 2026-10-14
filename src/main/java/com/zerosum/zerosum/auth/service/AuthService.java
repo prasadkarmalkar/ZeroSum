@@ -46,7 +46,24 @@ public class AuthService {
 	 */
 	@Transactional
 	public User register(RegisterRequest request) {
-		String email = User.normalizeEmail(request.email());
+		return createUser(request.email(), request.password(), Role.USER);
+	}
+
+	/**
+	 * Creates a user with the {@link Role#ADMIN} role, otherwise exactly like {@link #register}
+	 * (including the event, so the admin gets an account too).
+	 * <p>
+	 * Package-private on purpose: only {@link AdminSeeder} calls it, and no endpoint can reach it.
+	 *
+	 * @throws EmailAlreadyRegisteredException if the email (ignoring case) is already registered
+	 */
+	@Transactional
+	User createAdmin(String email, String rawPassword) {
+		return createUser(email, rawPassword, Role.ADMIN);
+	}
+
+	private User createUser(String rawEmail, String rawPassword, Role role) {
+		String email = User.normalizeEmail(rawEmail);
 		if (userRepository.existsByEmail(email)) {
 			throw new EmailAlreadyRegisteredException(email);
 		}
@@ -54,13 +71,13 @@ public class AuthService {
 		User user;
 		try {
 			// Flush now so a concurrent registration that slipped past the check above fails here, as a 409
-			user = userRepository.saveAndFlush(new User(email, passwordEncoder.encode(request.password()), Role.USER));
+			user = userRepository.saveAndFlush(new User(email, passwordEncoder.encode(rawPassword), role));
 		} catch (DataIntegrityViolationException e) {
 			throw new EmailAlreadyRegisteredException(email);
 		}
 
 		eventPublisher.publishEvent(new UserRegisteredEvent(user.getId()));
-		log.info("Registered user {}", user.getId());
+		log.info("Registered {} user {}", role, user.getId());
 		return user;
 	}
 
