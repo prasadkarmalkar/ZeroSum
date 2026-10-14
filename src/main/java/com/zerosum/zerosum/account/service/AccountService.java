@@ -3,6 +3,7 @@ package com.zerosum.zerosum.account.service;
 import com.zerosum.zerosum.account.domain.Account;
 import com.zerosum.zerosum.account.exception.AccountNotFoundException;
 import com.zerosum.zerosum.account.repository.AccountRepository;
+import com.zerosum.zerosum.auth.service.UserLookup;
 import com.zerosum.zerosum.common.Money;
 import com.zerosum.zerosum.common.ZerosumProperties;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +26,7 @@ public class AccountService {
 
 	private final AccountRepository accountRepository;
 	private final ZerosumProperties properties;
+	private final UserLookup userLookup;
 
 	/**
 	 * Opens a user's account in the project currency, with a zero balance.
@@ -52,6 +54,19 @@ public class AccountService {
 	public Account getForUser(Long userId) {
 		return accountRepository.findByUserId(userId)
 				.orElseThrow(() -> AccountNotFoundException.forUser(userId));
+	}
+
+	/**
+	 * Finds the account of the user with this email (matched ignoring case), resolving the user through
+	 * the auth module's public {@link UserLookup}.
+	 *
+	 * @throws AccountNotFoundException if no user has this email, or that user has no account
+	 */
+	@Transactional(readOnly = true)
+	public Account getForEmail(String email) {
+		return userLookup.findIdByEmail(email)
+				.flatMap(accountRepository::findByUserId)
+				.orElseThrow(() -> AccountNotFoundException.forEmail(email));
 	}
 
 	/**

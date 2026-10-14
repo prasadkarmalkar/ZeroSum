@@ -22,6 +22,26 @@ public record Money(long amountMinor, Currency currency) {
 		return new Money(amountMinor, Currency.getInstance(currencyCode));
 	}
 
+	/**
+	 * Parses a plain decimal amount, the API format from ADR 0001, e.g. {@code parse("12.50", INR)} = 1250 minor units.
+	 * The inverse of {@link #toDecimalString()}.
+	 *
+	 * @throws IllegalArgumentException if the text isn't a decimal number, has more decimal places than the
+	 *                                  currency allows, or doesn't fit in a {@code long}
+	 */
+	public static Money parse(String decimal, Currency currency) {
+		Objects.requireNonNull(decimal, "decimal must not be null");
+		Objects.requireNonNull(currency, "currency must not be null");
+		int scale = Math.max(currency.getDefaultFractionDigits(), 0);
+		try {
+			return new Money(new BigDecimal(decimal).movePointRight(scale).longValueExact(), currency);
+		} catch (NumberFormatException | ArithmeticException e) {
+			throw new IllegalArgumentException(
+					"'" + decimal + "' is not a valid " + currency.getCurrencyCode() + " amount with at most "
+							+ scale + " decimal places", e);
+		}
+	}
+
 	public static Money zero(Currency currency) {
 		return new Money(0L, currency);
 	}

@@ -54,15 +54,18 @@ feature modules, one top-level package per module under `com.zerosum.zerosum`.
 
 ```
 ledger ──▶ account ──▶ common
-  │                      ▲
-  └──────────────────────┤
-auth ────────────────────┘
+  │          │           ▲
+  │          ▼           │
+  │        auth ─────────┤   (account → auth only via UserLookup)
+  └──────────────────────┘
 ```
 
 1. **`common` depends on no other module.** It holds only generic code shared
    by all modules; no business logic lives here.
 2. **`auth` depends only on `common`.**
-3. **`account` depends only on `common`.**
+3. **`account` depends on `common`, and on `auth` only through its public
+   `UserLookup`** (to find a recipient's account by email). `auth` never imports
+   `account`, so there is no cycle.
 4. **`ledger` depends only on `account` and `common`.**
 5. **Dependencies point one way only; there are no cycles.** For example,
    `account` must never import from `ledger`. If a lower module needs to react

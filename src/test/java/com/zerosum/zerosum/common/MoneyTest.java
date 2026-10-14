@@ -28,6 +28,17 @@ class MoneyTest {
 	}
 
 	@Test
+	void parsesDecimalStrings() {
+		assertEquals(Money.of(1250, "INR"), Money.parse("12.50", INR));
+		assertEquals(Money.of(1000, "INR"), Money.parse("10", INR));
+		assertEquals(Money.of(150, "JPY"), Money.parse("150", Currency.getInstance("JPY")));
+		assertThrows(IllegalArgumentException.class, () -> Money.parse("1.005", INR));
+		assertThrows(IllegalArgumentException.class, () -> Money.parse("1.5", Currency.getInstance("JPY")));
+		assertThrows(IllegalArgumentException.class, () -> Money.parse("abc", INR));
+		assertThrows(IllegalArgumentException.class, () -> Money.parse("1e30", INR));
+	}
+
+	@Test
 	void printsAsDecimalWithCurrencyCode() {
 		assertEquals("10.50 INR", Money.of(1050, "INR").toString());
 		assertEquals("-0.05 USD", Money.of(-5, "USD").toString());
