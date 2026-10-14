@@ -1,6 +1,7 @@
 package com.zerosum.zerosum.auth.web;
 
 import com.zerosum.zerosum.auth.service.AuthService;
+import com.zerosum.zerosum.common.web.ErrorResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -10,7 +11,6 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.ProblemDetail;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -36,9 +36,9 @@ public class AuthController {
 			content = @Content(mediaType = "application/json", schema = @Schema(implementation = RegisterResponse.class)))
 	@ApiResponse(responseCode = "400", description = "Validation failed (errorCode VALIDATION_FAILED); "
 			+ "`errors` lists each invalid field",
-			content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
+			content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ErrorResponse.class)))
 	@ApiResponse(responseCode = "409", description = "Email already registered (errorCode EMAIL_ALREADY_REGISTERED)",
-			content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
+			content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ErrorResponse.class)))
 	@SecurityRequirements // public endpoint: no authentication required
 	@PostMapping("/register")
 	@ResponseStatus(HttpStatus.CREATED)
@@ -54,10 +54,10 @@ public class AuthController {
 			content = @Content(mediaType = "application/json", schema = @Schema(implementation = LoginResponse.class)))
 	@ApiResponse(responseCode = "400", description = "Validation failed (errorCode VALIDATION_FAILED); "
 			+ "`errors` lists each invalid field",
-			content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
+			content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ErrorResponse.class)))
 	@ApiResponse(responseCode = "401", description = "Unknown email or wrong password (errorCode INVALID_CREDENTIALS); "
 			+ "the response is the same in both cases",
-			content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
+			content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ErrorResponse.class)))
 	@SecurityRequirements // public endpoint: no authentication required
 	@PostMapping("/login")
 	public LoginResponse login(@Valid @RequestBody LoginRequest request) {
@@ -69,7 +69,7 @@ public class AuthController {
 	@ApiResponse(responseCode = "200", description = "The signed-in user",
 			content = @Content(mediaType = "application/json", schema = @Schema(implementation = MeResponse.class)))
 	@ApiResponse(responseCode = "401", description = "Missing, invalid or expired access token (errorCode UNAUTHORIZED)",
-			content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
+			content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ErrorResponse.class)))
 	@GetMapping("/me")
 	public MeResponse me(@AuthenticationPrincipal Jwt jwt) {
 		return MeResponse.from(jwt);

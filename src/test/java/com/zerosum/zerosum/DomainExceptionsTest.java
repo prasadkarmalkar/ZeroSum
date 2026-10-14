@@ -3,7 +3,6 @@ package com.zerosum.zerosum;
 import com.zerosum.zerosum.account.exception.AccountNotFoundException;
 import com.zerosum.zerosum.auth.exception.EmailAlreadyRegisteredException;
 import com.zerosum.zerosum.auth.exception.InvalidCredentialsException;
-import com.zerosum.zerosum.auth.exception.InvalidRefreshTokenException;
 import com.zerosum.zerosum.common.ApiException;
 import com.zerosum.zerosum.common.Money;
 import com.zerosum.zerosum.ledger.exception.IdempotencyKeyReusedException;
@@ -29,7 +28,6 @@ class DomainExceptionsTest {
 		return Stream.of(
 				Arguments.of(new EmailAlreadyRegisteredException("a@b.com"), 409, "EMAIL_ALREADY_REGISTERED"),
 				Arguments.of(new InvalidCredentialsException(), 401, "INVALID_CREDENTIALS"),
-				Arguments.of(new InvalidRefreshTokenException(), 401, "INVALID_REFRESH_TOKEN"),
 				Arguments.of(new AccountNotFoundException(ACCOUNT_ID), 404, "ACCOUNT_NOT_FOUND"),
 				Arguments.of(new InsufficientFundsException(ACCOUNT_ID, Money.of(500, "INR"), Money.of(1000, "INR")),
 						422, "INSUFFICIENT_FUNDS"),

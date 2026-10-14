@@ -1,5 +1,6 @@
 package com.zerosum.zerosum.auth.web;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -10,11 +11,13 @@ import jakarta.validation.constraints.Size;
  */
 public record LoginRequest(
 
+		@Schema(example = "alice@example.com", description = "Matched ignoring case")
 		@NotBlank
 		@Email
 		@Size(max = 255)
 		String email,
 
+		@Schema(example = "s3cret-Passw0rd")
 		@NotBlank
 		String password
 

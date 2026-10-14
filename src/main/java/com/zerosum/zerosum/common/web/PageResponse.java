@@ -1,5 +1,7 @@
 package com.zerosum.zerosum.common.web;
 
+import io.swagger.v3.oas.annotations.media.Schema;
+
 import java.util.List;
 import java.util.function.Function;
 
@@ -13,7 +15,12 @@ import java.util.function.Function;
  * @param totalElements the number of items across all pages
  * @param totalPages    the number of pages; 0 when there are no items
  */
-public record PageResponse<T>(List<T> content, int page, int size, long totalElements, int totalPages) {
+public record PageResponse<T>(
+		List<T> content,
+		@Schema(example = "0", description = "Zero-based page number") int page,
+		@Schema(example = "20", description = "Page size used (after capping)") int size,
+		@Schema(example = "3", description = "Items across all pages") long totalElements,
+		@Schema(example = "1", description = "Number of pages; 0 when there are no items") int totalPages) {
 
 	public PageResponse {
 		content = List.copyOf(content);

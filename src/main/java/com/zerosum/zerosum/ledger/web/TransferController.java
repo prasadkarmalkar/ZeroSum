@@ -1,6 +1,7 @@
 package com.zerosum.zerosum.ledger.web;
 
 import com.zerosum.zerosum.common.security.CurrentUserId;
+import com.zerosum.zerosum.common.web.ErrorResponse;
 import com.zerosum.zerosum.ledger.service.TransferService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -14,7 +15,6 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -44,17 +44,17 @@ public class TransferController {
 			content = @Content(mediaType = "application/json", schema = @Schema(implementation = TransferResponse.class)))
 	@ApiResponse(responseCode = "400", description = "Validation failed, including a missing or too long "
 			+ "Idempotency-Key (errorCode VALIDATION_FAILED); `errors` lists each invalid field",
-			content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
+			content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ErrorResponse.class)))
 	@ApiResponse(responseCode = "401", description = "Missing, invalid or expired access token (errorCode UNAUTHORIZED)",
-			content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
+			content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ErrorResponse.class)))
 	@ApiResponse(responseCode = "404", description = "The recipient (or the caller) has no account (errorCode ACCOUNT_NOT_FOUND)",
-			content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
+			content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ErrorResponse.class)))
 	@ApiResponse(responseCode = "409", description = "The Idempotency-Key was already used for a different request "
 			+ "(errorCode IDEMPOTENCY_KEY_REUSED)",
-			content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
+			content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ErrorResponse.class)))
 	@ApiResponse(responseCode = "422", description = "Not enough money (errorCode INSUFFICIENT_FUNDS), "
 			+ "or sending to yourself (errorCode SELF_TRANSFER_NOT_ALLOWED)",
-			content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
+			content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ErrorResponse.class)))
 	@PostMapping
 	public ResponseEntity<TransferResponse> transfer(
 			@CurrentUserId Long userId,

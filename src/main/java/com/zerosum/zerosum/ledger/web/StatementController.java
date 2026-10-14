@@ -1,6 +1,7 @@
 package com.zerosum.zerosum.ledger.web;
 
 import com.zerosum.zerosum.common.security.CurrentUserId;
+import com.zerosum.zerosum.common.web.ErrorResponse;
 import com.zerosum.zerosum.common.web.PageResponse;
 import com.zerosum.zerosum.ledger.service.StatementService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -11,7 +12,6 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -35,11 +35,11 @@ public class StatementController {
 					+ StatementService.MAX_PAGE_SIZE + "; the response reports the size used.")
 	@ApiResponse(responseCode = "200", description = "One page of the statement")
 	@ApiResponse(responseCode = "400", description = "page < 0 or size < 1 (errorCode VALIDATION_FAILED)",
-			content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
+			content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ErrorResponse.class)))
 	@ApiResponse(responseCode = "401", description = "Missing, invalid or expired access token (errorCode UNAUTHORIZED)",
-			content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
+			content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ErrorResponse.class)))
 	@ApiResponse(responseCode = "404", description = "The caller has no account (errorCode ACCOUNT_NOT_FOUND)",
-			content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
+			content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ErrorResponse.class)))
 	@GetMapping("/accounts/me/statement")
 	public PageResponse<StatementEntryResponse> statement(
 			@CurrentUserId Long userId,

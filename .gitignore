@@ -36,4 +36,6 @@ build/
 .claude/settings.local.json
 .mcp.json
 
-src/main/resources/certs/private.pem
+# JWT key pair: generated locally (see README), never committed
+keys/
+src/main/resources/certs/
