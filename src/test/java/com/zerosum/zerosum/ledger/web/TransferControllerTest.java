@@ -26,6 +26,7 @@ import org.springframework.test.web.servlet.ResultActions;
 
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -70,7 +71,7 @@ class TransferControllerTest {
 
 	@BeforeEach
 	void setUp() {
-		jdbcTemplate.execute("truncate table ledger_entries, ledger_transactions restart identity");
+		jdbcTemplate.execute("truncate table ledger_entries, ledger_transactions, idempotency_keys restart identity");
 		accountRepository.deleteAll();
 		userRepository.deleteAll();
 		treasurySeeder.seed();
@@ -217,6 +218,7 @@ class TransferControllerTest {
 	private ResultActions transfer(User sender, String json) throws Exception {
 		return mockMvc.perform(post("/transfers")
 				.header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenService.issueAccessToken(sender).value())
+				.header("Idempotency-Key", UUID.randomUUID().toString())
 				.contentType(MediaType.APPLICATION_JSON)
 				.content(json));
 	}

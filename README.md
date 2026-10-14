@@ -118,6 +118,51 @@ The 1-hour lifetime is the compromise between how often clients must log in agai
 leaked or outdated token stays useful. Planned fix: short access tokens plus refresh tokens stored
 server-side (the reserved `INVALID_REFRESH_TOKEN` code), which can be revoked on logout.
 
+## Idempotent transfers
+
+Networks fail. A client that sends `POST /transfers` and never sees the response can't know whether
+the money moved, so it must be able to **retry safely**. Every transfer therefore requires an
+`Idempotency-Key` header: a value the client picks once per transfer (a fresh UUID is ideal, at most
+255 characters) and reuses on every retry of that same transfer.
+
+```http
+POST /transfers
+Authorization: Bearer eyJ...
+Idempotency-Key: 3f1c2e9a-8b7d-4c1e-9f0a-6d2b5e8c4a71
+
+{"recipientEmail": "bob@example.com", "amount": "100.00", "description": "Rent"}
+```
+
+| Situation                                   | Result                                                                                  |
+|---------------------------------------------|-----------------------------------------------------------------------------------------|
+| New key                                     | The transfer runs: `201`, `Idempotent-Replayed: false`                                   |
+| Same key, same request                      | Nothing runs again; the **original** `201` body is returned, `Idempotent-Replayed: true` |
+| Same key, different request                 | `409 IDEMPOTENCY_KEY_REUSED`; nothing runs                                               |
+| Missing, blank or too long key              | `400 VALIDATION_FAILED` (field `idempotencyKey`)                                         |
+| Request failed (e.g. `422 INSUFFICIENT_FUNDS`) | Nothing is remembered, so the same key can be retried once the problem is fixed       |
+
+**How it works**
+
+- Keys live in the `idempotency_keys` table, owned by the ledger module, with a unique constraint on
+  **(user, key)**: keys are scoped per user, so two users can't collide or see each other's results.
+- Each row stores a **fingerprint** of the request: a SHA-256 of the normalized recipient email, the amount
+  in minor units and the description (blank means `"Transfer"`). Requests that mean the same transfer
+  match even if spelled differently (`BOB@Example.com` / `bob@example.com`, `"100"` / `"100.00"`).
+  It also stores the transaction id and the original response body to replay.
+- The key row is inserted **before** the transfer runs and completed in the **same** database transaction.
+  So the key, the ledger entries and the balance changes commit together, or not at all.
+
+**Two identical requests at the same moment**
+
+Both find no key, and both try to insert it. Postgres makes the second insert wait on the unique index
+until the first transaction finishes. When the first commits, the second insert fails with a unique
+violation, which rolls back the second request's transaction before it has moved any money. The service
+catches that one violation and, in a fresh transaction, reads the winner's row and replays its response
+(or returns `409` if the two bodies differed). The money moves exactly once, and both callers get the
+same `201` body. `TransferIdempotencyTest` races identical requests ten times to prove it.
+
+**Not yet:** keys are kept forever. A cleanup job for keys older than, say, 24 hours can come later.
+
 ## Error codes
 
 Every error response is an RFC 9457 `ProblemDetail` with an extra `errorCode` field.
