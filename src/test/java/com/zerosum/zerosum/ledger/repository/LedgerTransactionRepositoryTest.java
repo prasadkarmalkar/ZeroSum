@@ -91,7 +91,18 @@ class LedgerTransactionRepositoryTest {
 				.map(Method::getName)
 				.toList();
 
-		assertThat(methods).containsExactlyInAnyOrder("save", "saveAndFlush", "findById", "count");
+		assertThat(methods).containsExactlyInAnyOrder("save", "saveAndFlush", "findById", "findByIdForAccount", "count");
+	}
+
+	@Test
+	void findByIdForAccountReturnsTheTransactionOnlyToItsOwnAccounts() {
+		Long id = repository.saveAndFlush(transfer(10L, 20L, 500)).getId();
+		entityManager.clear();
+
+		assertThat(repository.findByIdForAccount(id, 10L)).isPresent();
+		assertThat(repository.findByIdForAccount(id, 20L)).isPresent();
+		assertThat(repository.findByIdForAccount(id, 30L)).isEmpty();
+		assertThat(repository.findByIdForAccount(999_999L, 10L)).isEmpty();
 	}
 
 	@Test

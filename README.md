@@ -199,13 +199,14 @@ Each exception extends `common.ApiException` and lives in its owning module's `e
 | `INSUFFICIENT_FUNDS`        | 422    | `InsufficientFundsException`       | `ledger`  | Source account balance is lower than the requested amount  |
 | `SELF_TRANSFER_NOT_ALLOWED` | 422    | `SelfTransferNotAllowedException`  | `ledger`  | Source and destination account are the same                |
 | `IDEMPOTENCY_KEY_REUSED`    | 409    | `IdempotencyKeyReusedException`    | `ledger`  | Idempotency key already used with a different request body |
+| `TRANSACTION_NOT_FOUND`     | 404    | `TransactionNotFoundException`     | `ledger`  | No such transaction, **or** the caller isn't part of it; deliberately indistinguishable |
 | `LEDGER_INVARIANT_VIOLATED` | 500    | `LedgerInvariantViolationException` (and its subclass `UnbalancedTransactionException`) | `ledger`  | A posting broke a ledger rule, e.g. entries don't sum to zero (a bug on our side) |
 
 ### Generic errors
 
 | Code                | Status | When                                                                      |
 |---------------------|--------|---------------------------------------------------------------------------|
-| `VALIDATION_FAILED` | 400    | Bean Validation failed; `errors` lists each `field` and its `message`    |
+| `VALIDATION_FAILED` | 400    | Bean Validation failed, or a path/query value has the wrong type (e.g. a non-numeric id); `errors` lists each `field` and its `message` |
 | `UNAUTHORIZED`      | 401    | Missing, malformed, expired or wrongly signed bearer token                |
 | `ACCESS_DENIED`     | 403    | Valid token, but its role doesn't allow the request                       |
 | `INTERNAL_ERROR`    | 500    | Any unexpected exception; the stack trace is logged, never returned       |

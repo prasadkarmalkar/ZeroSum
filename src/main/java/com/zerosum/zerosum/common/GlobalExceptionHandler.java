@@ -2,6 +2,7 @@ package com.zerosum.zerosum.common;
 
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.TypeMismatchException;
 import org.springframework.context.MessageSourceResolvable;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -72,6 +73,19 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 								error.getDefaultMessage())))
 				.toList();
 		return handleExceptionInternal(ex, validationProblem(violations), headers, HttpStatus.BAD_REQUEST, request);
+	}
+
+	/**
+	 * A path variable or query parameter that can't be converted to its type, e.g. {@code /transactions/abc}
+	 * for a numeric id: reported like any other invalid field, instead of Spring's bare 400.
+	 */
+	@Override
+	protected ResponseEntity<Object> handleTypeMismatch(
+			TypeMismatchException ex, HttpHeaders headers, HttpStatusCode status, WebRequest request) {
+		String field = ex.getPropertyName() != null ? ex.getPropertyName() : "value";
+		String expected = ex.getRequiredType() != null ? ex.getRequiredType().getSimpleName().toLowerCase() : "value";
+		FieldViolation violation = new FieldViolation(field, "must be a valid " + expected);
+		return handleExceptionInternal(ex, validationProblem(List.of(violation)), headers, HttpStatus.BAD_REQUEST, request);
 	}
 
 	/** Anything not handled above: log it in full, but tell the client nothing about the cause. */
