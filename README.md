@@ -190,6 +190,45 @@ transaction. Under PostgreSQL's default (`READ COMMITTED`) each query would see 
 transfer landing between "read the balances" and "read the entries" would report mismatches that never
 existed; `TrialBalanceTest` reproduces exactly that when the isolation is lowered.
 
+## How correctness is tested
+
+The promise is that **money is never created or lost, even under concurrent load**. Single-request tests
+can't show that, so `concurrency/ConcurrencyTest` fires requests in parallel against a real PostgreSQL
+database:
+
+- **No test-level transaction:** every transfer commits or rolls back on its own connection, as in production.
+- **The production code path:** requests go through `TransferService`, the code the controller calls,
+  with its row locks, overdraft check and idempotency.
+- **Real funding:** test users are funded through `DepositService`, out of TREASURY.
+- **A true simultaneous start:** `ConcurrentRunner` starts all tasks at the same instant, waits with a
+  timeout (a hang fails the test), and collects every result and exception.
+
+| Test | Setup | Must be true afterward | What it proves |
+|------|-------|------------------------|----------------|
+| **Transfer storm** | 10 users with 1000.00 each; 150 random transfers between them, all at once | Each transfer either succeeds or fails cleanly with `InsufficientFunds`; no balance below zero; users' total still 10000.00 | Under real contention, money only moves between accounts: none created, none lost |
+| **Overdraft race** | One user with 100.00; 10 parallel transfers of 60.00 | Exactly 1 succeeds, 9 get `InsufficientFunds`; balance 40.00 | Two transfers can't both spend the same money: the row lock makes the balance check and update atomic |
+| **Opposite directions** | 50 A→B of 5.00 and 50 B→A of 3.00, all at once | All 100 complete; A = 900.00, B = 1100.00 | Locking in a fixed order (lowest account id first) prevents deadlocks |
+| **Duplicate requests** | The same transfer with the same `Idempotency-Key`, 10 times in parallel | One transaction; all 10 responses carry the same transaction id | A retried or double-sent request moves money once |
+
+**Every test ends with the trial balance:** all entries sum to zero, and every cached balance matches its
+entries. So even a test whose own assertions pass fails if the ledger was left inconsistent.
+
+**The tests can fail, and did.** With the row locks from `AccountService.lockAccounts` removed (plain reads
+instead of `SELECT ... FOR UPDATE`), three of the four break, and so does every trial balance:
+
+- **Overdraft race:** all 10 transfers of 60.00 "succeeded" out of 100.00.
+- **Transfer storm:** users ended with 8971.00 instead of 10000.00.
+- **Opposite directions:** A ended at 967.00 instead of 900.00.
+
+Duplicate requests still passes: it's protected by the idempotency key's unique index, not by row locks.
+
+**This suite also found a real bug.** It failed the same way *with* locking enabled. `TransferService`
+loaded the sender's account before locking it. Hibernate then returned that already-loaded, stale copy
+instead of the row the `FOR UPDATE` had just read, so concurrent transfers all saw the old balance.
+Earlier tests missed it because they called the ledger directly, with nothing loaded first.
+`lockAccounts` now re-reads each account after locking it, which is guaranteed fresh while the lock is
+held. `AccountLockingTest` pins the bug down deterministically.
+
 ## Error codes
 
 Every error response is an RFC 9457 `ProblemDetail` with an extra `errorCode` field.

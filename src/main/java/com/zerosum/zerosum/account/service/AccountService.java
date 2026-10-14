@@ -7,6 +7,7 @@ import com.zerosum.zerosum.account.repository.AccountRepository;
 import com.zerosum.zerosum.auth.service.UserLookup;
 import com.zerosum.zerosum.common.Money;
 import com.zerosum.zerosum.common.ZerosumProperties;
+import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -29,6 +30,7 @@ public class AccountService {
 	private final AccountRepository accountRepository;
 	private final ZerosumProperties properties;
 	private final UserLookup userLookup;
+	private final EntityManager entityManager;
 
 	/**
 	 * Opens a user's account in the project currency, with a zero balance.
@@ -103,6 +105,10 @@ public class AccountService {
 		for (Long id : new TreeSet<>(accountIds)) {
 			Account account = accountRepository.findByIdForUpdate(id)
 					.orElseThrow(() -> new AccountNotFoundException(id));
+			// If this transaction loaded the account before locking it (e.g. to resolve the sender), Hibernate
+			// hands back that same, possibly stale instance instead of the row the lock just read. Re-read it:
+			// while we hold the lock, this is guaranteed to be the latest committed balance.
+			entityManager.refresh(account);
 			locked.add(AccountView.of(account));
 		}
 		return List.copyOf(locked);

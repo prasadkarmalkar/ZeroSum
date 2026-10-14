@@ -17,6 +17,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 import java.time.Duration;
 import java.util.Currency;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -127,6 +128,20 @@ class AccountLockingTest {
 	}
 
 	@Test
+	void lockReturnsTheLatestBalanceEvenIfTheAccountWasLoadedEarlierInTheTransaction() {
+		List<AccountView> views = tx.execute(status -> {
+			// Load the account into this transaction's persistence context, before any lock...
+			accountService.getForUser(9001L);
+			// ...then another transaction changes and commits its balance
+			runInOtherTransaction(() -> accountService.applyBalanceChanges(Map.of(a, Money.of(500, "INR"))));
+			// The lock must see that committed change, not the stale copy loaded above
+			return accountService.lockAccounts(List.of(a));
+		});
+
+		assertThat(views.getFirst().balance()).isEqualTo(Money.of(500, "INR"));
+	}
+
+	@Test
 	void refusesToRunOutsideATransaction() {
 		assertThatThrownBy(() -> accountService.lockAccounts(List.of(a)))
 				.isInstanceOf(IllegalTransactionStateException.class);
@@ -137,6 +152,15 @@ class AccountLockingTest {
 		assertThatThrownBy(() -> tx.execute(status -> accountService.lockAccounts(List.of(a, 999_999L))))
 				.isInstanceOf(AccountNotFoundException.class)
 				.hasMessageContaining("999999");
+	}
+
+	/** Runs and commits the work on another thread (so another connection), and waits for it. */
+	private void runInOtherTransaction(Runnable work) {
+		try {
+			threads.submit(() -> tx.executeWithoutResult(status -> work.run())).get(5, TimeUnit.SECONDS);
+		} catch (Exception e) {
+			throw new IllegalStateException(e);
+		}
 	}
 
 	private void lockAndHold(List<Long> ids) {
