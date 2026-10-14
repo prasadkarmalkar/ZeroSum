@@ -1,5 +1,8 @@
 package com.zerosum.zerosum.ledger.service;
 
+import com.zerosum.zerosum.account.domain.Account;
+import com.zerosum.zerosum.account.exception.AccountNotFoundException;
+import com.zerosum.zerosum.account.repository.AccountRepository;
 import com.zerosum.zerosum.common.Money;
 import com.zerosum.zerosum.ledger.domain.EntryLine;
 import com.zerosum.zerosum.ledger.domain.TransactionType;
@@ -11,6 +14,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
+import java.util.Currency;
 import java.util.List;
 import java.util.Map;
 
@@ -31,17 +35,26 @@ class LedgerServiceIntegrationTest {
 	@Autowired
 	private JdbcTemplate jdbcTemplate;
 
+	@Autowired
+	private AccountRepository accountRepository;
+
+	private Long from;
+	private Long to;
+
 	@BeforeEach
-	void emptyLedger() {
+	void emptyLedgerAndCreateAccounts() {
 		// Plain SQL: the ledger is append-only, so JPA can't delete it
 		jdbcTemplate.execute("truncate table ledger_entries, ledger_transactions restart identity");
+		accountRepository.deleteAll();
+		from = accountRepository.saveAndFlush(Account.forUser(8001L, Currency.getInstance("INR"))).getId();
+		to = accountRepository.saveAndFlush(Account.forUser(8002L, Currency.getInstance("INR"))).getId();
 	}
 
 	@Test
 	void validPostPersistsTheTransactionAndAllItsEntries() {
 		Long id = ledgerService.post(TransactionType.TRANSFER, "Rent", List.of(
-				new EntryLine(10L, Money.of(-500, "INR")),
-				new EntryLine(20L, Money.of(500, "INR"))));
+				new EntryLine(from, Money.of(-500, "INR")),
+				new EntryLine(to, Money.of(500, "INR"))));
 
 		Map<String, Object> tx = jdbcTemplate.queryForMap(
 				"select type, description, created_at from ledger_transactions where id = ?", id);
@@ -52,8 +65,8 @@ class LedgerServiceIntegrationTest {
 		List<Map<String, Object>> entries = jdbcTemplate.queryForList(
 				"select account_id, amount_minor, currency from ledger_entries where transaction_id = ? order by id", id);
 		assertThat(entries).containsExactly(
-				Map.of("account_id", 10L, "amount_minor", -500L, "currency", "INR"),
-				Map.of("account_id", 20L, "amount_minor", 500L, "currency", "INR"));
+				Map.of("account_id", from, "amount_minor", -500L, "currency", "INR"),
+				Map.of("account_id", to, "amount_minor", 500L, "currency", "INR"));
 
 		Long sum = jdbcTemplate.queryForObject(
 				"select sum(amount_minor) from ledger_entries where transaction_id = ?", Long.class, id);
@@ -63,9 +76,20 @@ class LedgerServiceIntegrationTest {
 	@Test
 	void invalidPostPersistsNothing() {
 		assertThatThrownBy(() -> ledgerService.post(TransactionType.TRANSFER, "Bad", List.of(
-				new EntryLine(10L, Money.of(-500, "INR")),
-				new EntryLine(20L, Money.of(499, "INR")))))
+				new EntryLine(from, Money.of(-500, "INR")),
+				new EntryLine(to, Money.of(499, "INR")))))
 				.isInstanceOf(LedgerInvariantViolationException.class);
+
+		assertThat(count("ledger_transactions")).isZero();
+		assertThat(count("ledger_entries")).isZero();
+	}
+
+	@Test
+	void postToAnUnknownAccountPersistsNothing() {
+		assertThatThrownBy(() -> ledgerService.post(TransactionType.TRANSFER, "To nowhere", List.of(
+				new EntryLine(from, Money.of(-500, "INR")),
+				new EntryLine(999_999L, Money.of(500, "INR")))))
+				.isInstanceOf(AccountNotFoundException.class);
 
 		assertThat(count("ledger_transactions")).isZero();
 		assertThat(count("ledger_entries")).isZero();

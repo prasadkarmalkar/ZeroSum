@@ -7,7 +7,13 @@ import com.zerosum.zerosum.common.ZerosumProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.TreeSet;
 
 @Slf4j
 @Service
@@ -43,6 +49,30 @@ public class AccountService {
 	public Account getForUser(Long userId) {
 		return accountRepository.findByUserId(userId)
 				.orElseThrow(() -> AccountNotFoundException.forUser(userId));
+	}
+
+	/**
+	 * Locks the given accounts' rows for the rest of the current transaction and returns a view of each,
+	 * in ascending id order.
+	 * <p>
+	 * Rows are always locked lowest id first, whatever order the ids are given in. Two transactions that
+	 * touch the same accounts (e.g. A to B and B to A) therefore queue on the same first row instead of
+	 * each holding one row and waiting forever for the other. Duplicate ids are locked once.
+	 * <p>
+	 * {@link Propagation#MANDATORY}: a lock taken outside a transaction would be released immediately,
+	 * so calling this without one is a bug and fails fast with an {@code IllegalTransactionStateException}.
+	 *
+	 * @throws AccountNotFoundException if any id has no account
+	 */
+	@Transactional(propagation = Propagation.MANDATORY)
+	public List<AccountView> lockAccounts(Collection<Long> accountIds) {
+		List<AccountView> locked = new ArrayList<>();
+		for (Long id : new TreeSet<>(accountIds)) {
+			Account account = accountRepository.findByIdForUpdate(id)
+					.orElseThrow(() -> new AccountNotFoundException(id));
+			locked.add(AccountView.of(account));
+		}
+		return List.copyOf(locked);
 	}
 
 }
