@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface AccountRepository extends JpaRepository<Account, Long> {
@@ -22,5 +23,13 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
 	@Query("select a from Account a where a.id = :id")
 	Optional<Account> findByIdForUpdate(Long id);
+
+	/** The sum of every account's cached balance, in minor units (0 when there are no accounts). */
+	@Query("select coalesce(sum(a.balanceMinor), 0) from Account a")
+	long sumOfCachedBalances();
+
+	/** Every account's id and cached balance, in minor units. */
+	@Query("select new com.zerosum.zerosum.account.repository.AccountBalance(a.id, a.balanceMinor) from Account a")
+	List<AccountBalance> findAllCachedBalances();
 
 }

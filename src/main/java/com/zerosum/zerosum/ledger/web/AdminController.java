@@ -2,6 +2,7 @@ package com.zerosum.zerosum.ledger.web;
 
 import com.zerosum.zerosum.common.security.CurrentUserId;
 import com.zerosum.zerosum.ledger.service.DepositService;
+import com.zerosum.zerosum.ledger.service.TrialBalanceService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
@@ -16,6 +17,7 @@ import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -30,6 +32,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class AdminController {
 
 	private final DepositService depositService;
+	private final TrialBalanceService trialBalanceService;
 
 	@Operation(
 			summary = "Deposit money into a user's account",
@@ -63,6 +66,23 @@ public class AdminController {
 			@RequestHeader(name = IdempotencyHeaders.IDEMPOTENCY_KEY, required = false) @NotBlank @Size(max = 255) String idempotencyKey,
 			@Valid @RequestBody DepositRequest request) {
 		return IdempotencyHeaders.created(depositService.deposit(adminUserId, idempotencyKey, request));
+	}
+
+	@Operation(
+			summary = "Check that the ledger is whole (trial balance)",
+			description = "Proves the zero-sum promise at this moment: every ledger entry ever written sums to zero, and "
+					+ "every account's cached balance equals the sum of its entries. All figures come from one "
+					+ "consistent database snapshot. `balanced` is false if either check fails; that is also logged "
+					+ "at error level. ADMIN role required. Read-only, so no Idempotency-Key is needed.")
+	@ApiResponse(responseCode = "200", description = "The trial balance (check `balanced`)",
+			content = @Content(mediaType = "application/json", schema = @Schema(implementation = TrialBalanceResponse.class)))
+	@ApiResponse(responseCode = "401", description = "Missing, invalid or expired access token (errorCode UNAUTHORIZED)",
+			content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
+	@ApiResponse(responseCode = "403", description = "Signed in, but not an admin (errorCode ACCESS_DENIED)",
+			content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
+	@GetMapping("/trial-balance")
+	public TrialBalanceResponse trialBalance() {
+		return TrialBalanceResponse.from(trialBalanceService.check());
 	}
 
 }

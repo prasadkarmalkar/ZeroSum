@@ -100,7 +100,7 @@ src/
 3. Send it on every other request as `Authorization: Bearer <accessToken>`.
    In Swagger UI, click **Authorize** and paste the token (without `Bearer `).
 
-Every path under `/admin` (currently `POST /admin/deposits`) also requires the `ADMIN` role; a signed-in
+Every path under `/admin` (`POST /admin/deposits` and `GET /admin/trial-balance`) also requires the `ADMIN` role; a signed-in
 user without it gets `403 ACCESS_DENIED`. The admin user is seeded on startup from `zerosum.admin.*`, and
 no endpoint can create another one.
 
@@ -170,6 +170,25 @@ catches that one violation and, in a fresh transaction, reads the winner's row a
 same `201` body. `TransferIdempotencyTest` races identical requests ten times to prove it.
 
 **Not yet:** keys are kept forever. A cleanup job for keys older than, say, 24 hours can come later.
+
+## Trial balance
+
+`GET /admin/trial-balance` (admin only) is the zero-sum promise as a live check:
+
+```json
+{ "balanced": true, "entriesTotal": "0.00", "balancesTotal": "0.00",
+  "mismatchedAccounts": 0, "transactionCount": 42, "checkedAt": "2026-10-14T15:30:00Z" }
+```
+
+- `entriesTotal`: every ledger entry ever written, summed. Must be `0.00`.
+- `mismatchedAccounts`: accounts whose cached balance (ADR 0003) differs from the sum of their entries,
+  including entries on an account that no longer exists. Must be `0`.
+- `balanced` is true only when both hold; when it isn't, the details are logged at error level.
+
+All figures come from **one database snapshot**: the check runs in a single read-only `REPEATABLE_READ`
+transaction. Under PostgreSQL's default (`READ COMMITTED`) each query would see the latest commits, so a
+transfer landing between "read the balances" and "read the entries" would report mismatches that never
+existed; `TrialBalanceTest` reproduces exactly that when the isolation is lowered.
 
 ## Error codes
 

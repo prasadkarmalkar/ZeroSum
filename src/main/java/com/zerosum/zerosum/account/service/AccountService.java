@@ -2,6 +2,7 @@ package com.zerosum.zerosum.account.service;
 
 import com.zerosum.zerosum.account.domain.Account;
 import com.zerosum.zerosum.account.exception.AccountNotFoundException;
+import com.zerosum.zerosum.account.repository.AccountBalance;
 import com.zerosum.zerosum.account.repository.AccountRepository;
 import com.zerosum.zerosum.auth.service.UserLookup;
 import com.zerosum.zerosum.common.Money;
@@ -18,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -126,6 +128,19 @@ public class AccountService {
 					.orElseThrow(() -> new AccountNotFoundException(id));
 			account.applyChange(change);
 		});
+	}
+
+	/** The sum of every account's cached balance, in minor units. Joins the caller's transaction (and snapshot). */
+	@Transactional(readOnly = true)
+	public long totalCachedBalance() {
+		return accountRepository.sumOfCachedBalances();
+	}
+
+	/** Each account's cached balance, in minor units, by account id. Joins the caller's transaction (and snapshot). */
+	@Transactional(readOnly = true)
+	public Map<Long, Long> cachedBalances() {
+		return accountRepository.findAllCachedBalances().stream()
+				.collect(Collectors.toMap(AccountBalance::accountId, AccountBalance::balanceMinor));
 	}
 
 }
