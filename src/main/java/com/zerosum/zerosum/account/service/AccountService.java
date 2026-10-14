@@ -1,6 +1,7 @@
 package com.zerosum.zerosum.account.service;
 
 import com.zerosum.zerosum.account.domain.Account;
+import com.zerosum.zerosum.account.exception.AccountNotFoundException;
 import com.zerosum.zerosum.account.repository.AccountRepository;
 import com.zerosum.zerosum.common.ZerosumProperties;
 import lombok.RequiredArgsConstructor;
@@ -35,6 +36,13 @@ public class AccountService {
 		Account account = accountRepository.saveAndFlush(Account.system(systemCode, properties.currency()));
 		log.info("Opened system account {} ({})", account.getId(), systemCode);
 		return account;
+	}
+
+	/** @throws AccountNotFoundException if the user has no account */
+	@Transactional(readOnly = true)
+	public Account getForUser(Long userId) {
+		return accountRepository.findByUserId(userId)
+				.orElseThrow(() -> AccountNotFoundException.forUser(userId));
 	}
 
 }

@@ -20,6 +20,14 @@ class MoneyTest {
 	}
 
 	@Test
+	void formatsAsPlainDecimalString() {
+		assertEquals("1050.00", Money.of(105000, "INR").toDecimalString());
+		assertEquals("0.00", Money.of(0, "INR").toDecimalString());
+		assertEquals("-0.05", Money.of(-5, "USD").toDecimalString());
+		assertEquals("150", Money.of(150, "JPY").toDecimalString());
+	}
+
+	@Test
 	void printsAsDecimalWithCurrencyCode() {
 		assertEquals("10.50 INR", Money.of(1050, "INR").toString());
 		assertEquals("-0.05 USD", Money.of(-5, "USD").toString());

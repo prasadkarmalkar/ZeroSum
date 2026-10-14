@@ -52,11 +52,19 @@ public record Money(long amountMinor, Currency currency) {
 		return amountMinor > 0L;
 	}
 
+	/**
+	 * The amount as a plain decimal at the currency's scale, without the currency, e.g. {@code 1050.00}.
+	 * This is the API format for amounts (a JSON string, so clients never parse it as a float).
+	 */
+	public String toDecimalString() {
+		int scale = Math.max(currency.getDefaultFractionDigits(), 0);
+		return BigDecimal.valueOf(amountMinor, scale).toPlainString();
+	}
+
 	/** Human-readable form, e.g. {@code 10.50 INR}. */
 	@Override
 	public String toString() {
-		int scale = Math.max(currency.getDefaultFractionDigits(), 0);
-		return BigDecimal.valueOf(amountMinor, scale).toPlainString() + " " + currency.getCurrencyCode();
+		return toDecimalString() + " " + currency.getCurrencyCode();
 	}
 
 	private void requireSameCurrency(Money other) {
