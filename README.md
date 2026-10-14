@@ -67,7 +67,8 @@ auth ────────────────────┘
 5. **Dependencies point one way only; there are no cycles.** For example,
    `account` must never import from `ledger`. If a lower module needs to react
    to something in a higher one, use Spring application events instead of a
-   direct call.
+   direct call. Events that cross modules live in `common.event` (e.g.
+   `UserRegisteredEvent`), so listeners don't depend on the publishing module.
 6. **Modules talk to each other only through public APIs**, such as service
    interfaces and DTOs. Repositories, JPA entities and other internals stay
    inside their own module.

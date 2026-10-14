@@ -1,4 +1,4 @@
-package com.zerosum.zerosum.auth.domain;
+package com.zerosum.zerosum.auth.web;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;

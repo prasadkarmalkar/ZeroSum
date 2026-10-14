@@ -1,7 +1,7 @@
 package com.zerosum.zerosum.auth.repository;
 
-import com.zerosum.zerosum.auth.domain.Role;
-import com.zerosum.zerosum.auth.domain.User;
+import com.zerosum.zerosum.auth.web.Role;
+import com.zerosum.zerosum.auth.web.User;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
