@@ -3,6 +3,7 @@ package com.zerosum.zerosum.account.service;
 import com.zerosum.zerosum.account.domain.Account;
 import com.zerosum.zerosum.account.exception.AccountNotFoundException;
 import com.zerosum.zerosum.account.repository.AccountRepository;
+import com.zerosum.zerosum.common.Money;
 import com.zerosum.zerosum.common.ZerosumProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -13,6 +14,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 import java.util.TreeSet;
 
 @Slf4j
@@ -73,6 +76,28 @@ public class AccountService {
 			locked.add(AccountView.of(account));
 		}
 		return List.copyOf(locked);
+	}
+
+	/**
+	 * Adds each signed change to its account's cached balance, in ascending id order.
+	 * <p>
+	 * Re-takes each row lock (a no-op if the caller already holds it, as {@code LedgerService.post} does
+	 * via {@link #lockAccounts}), so balances are never written without a lock. A USER account going
+	 * negative here means the caller skipped its overdraft check: {@link Account#applyChange} throws, and
+	 * the database CHECK backs that up.
+	 * <p>
+	 * {@link Propagation#MANDATORY}: the changes must commit or roll back together with the ledger
+	 * entries they mirror, so calling this without a transaction is a bug and fails fast.
+	 *
+	 * @throws AccountNotFoundException if any id has no account
+	 */
+	@Transactional(propagation = Propagation.MANDATORY)
+	public void applyBalanceChanges(Map<Long, Money> changes) {
+		new TreeMap<>(changes).forEach((id, change) -> {
+			Account account = accountRepository.findByIdForUpdate(id)
+					.orElseThrow(() -> new AccountNotFoundException(id));
+			account.applyChange(change);
+		});
 	}
 
 }

@@ -46,7 +46,8 @@ class LedgerServiceIntegrationTest {
 		// Plain SQL: the ledger is append-only, so JPA can't delete it
 		jdbcTemplate.execute("truncate table ledger_entries, ledger_transactions restart identity");
 		accountRepository.deleteAll();
-		from = accountRepository.saveAndFlush(Account.forUser(8001L, Currency.getInstance("INR"))).getId();
+		// A SYSTEM source is exempt from the overdraft check, so these tests can post without funding it first
+		from = accountRepository.saveAndFlush(Account.system(Account.TREASURY, Currency.getInstance("INR"))).getId();
 		to = accountRepository.saveAndFlush(Account.forUser(8002L, Currency.getInstance("INR"))).getId();
 	}
 

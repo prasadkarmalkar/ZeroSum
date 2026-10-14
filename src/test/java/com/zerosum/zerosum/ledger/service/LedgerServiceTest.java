@@ -12,6 +12,7 @@ import com.zerosum.zerosum.common.Money;
 import com.zerosum.zerosum.ledger.domain.EntryLine;
 import com.zerosum.zerosum.ledger.domain.LedgerTransaction;
 import com.zerosum.zerosum.ledger.domain.TransactionType;
+import com.zerosum.zerosum.ledger.exception.InsufficientFundsException;
 import com.zerosum.zerosum.ledger.exception.LedgerInvariantViolationException;
 import com.zerosum.zerosum.ledger.repository.LedgerTransactionRepository;
 import org.junit.jupiter.api.AfterEach;
@@ -22,11 +23,13 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.Currency;
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
+import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -58,8 +61,9 @@ class LedgerServiceTest {
 	}
 
 	@Test
-	void validPostingLocksTheAccountsThenSavesAndReturnsTheId() {
-		when(accountService.lockAccounts(anyCollection())).thenReturn(List.of(view(1L, INR), view(2L, INR)));
+	void validPostingLocksThenSavesThenAppliesBalancesAndReturnsTheId() {
+		when(accountService.lockAccounts(anyCollection()))
+				.thenReturn(List.of(view(1L, INR, 1000), view(2L, INR, 0)));
 		when(repository.save(any())).thenAnswer(invocation -> {
 			LedgerTransaction tx = invocation.getArgument(0);
 			ReflectionTestUtils.setField(tx, "id", 42L);
@@ -74,6 +78,35 @@ class LedgerServiceTest {
 		var order = inOrder(accountService, repository);
 		order.verify(accountService).lockAccounts(List.of(1L, 2L));
 		order.verify(repository).save(any());
+		order.verify(accountService).applyBalanceChanges(Map.of(1L, Money.of(-500, "INR"), 2L, Money.of(500, "INR")));
+	}
+
+	@Test
+	void overdraftIsRejectedBeforeAnythingIsSaved() {
+		when(accountService.lockAccounts(anyCollection()))
+				.thenReturn(List.of(view(1L, INR, 499), view(2L, INR, 0)));
+
+		assertThatThrownBy(() -> service.post(TransactionType.TRANSFER, "Too much", List.of(
+				new EntryLine(1L, Money.of(-500, "INR")),
+				new EntryLine(2L, Money.of(500, "INR")))))
+				.isInstanceOf(InsufficientFundsException.class)
+				.hasMessage("Account 1 has 4.99 INR available but 5.00 INR was requested");
+
+		verify(repository, never()).save(any());
+		verify(accountService, never()).applyBalanceChanges(anyMap());
+	}
+
+	@Test
+	void systemAccountsAreExemptFromTheOverdraftCheck() {
+		when(accountService.lockAccounts(anyCollection())).thenReturn(List.of(
+				new AccountView(1L, AccountType.SYSTEM, INR, new Money(0, INR)), view(2L, INR, 0)));
+		when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+		service.post(TransactionType.DEPOSIT, "Deposit", List.of(
+				new EntryLine(1L, Money.of(-500, "INR")),
+				new EntryLine(2L, Money.of(500, "INR"))));
+
+		verify(accountService).applyBalanceChanges(anyMap());
 	}
 
 	@Test
@@ -91,7 +124,7 @@ class LedgerServiceTest {
 	@Test
 	void entryCurrencyMustMatchItsAccount() {
 		when(accountService.lockAccounts(anyCollection()))
-				.thenReturn(List.of(view(1L, INR), view(2L, INR)));
+				.thenReturn(List.of(view(1L, INR, 1000), view(2L, INR, 0)));
 
 		assertThatThrownBy(() -> service.post(TransactionType.TRANSFER, "USD into INR accounts", List.of(
 				new EntryLine(1L, Money.of(-500, "USD")),
@@ -122,8 +155,8 @@ class LedgerServiceTest {
 		});
 	}
 
-	private static AccountView view(Long id, Currency currency) {
-		return new AccountView(id, AccountType.USER, currency, new Money(0, currency));
+	private static AccountView view(Long id, Currency currency, long balanceMinor) {
+		return new AccountView(id, AccountType.USER, currency, new Money(balanceMinor, currency));
 	}
 
 }
