@@ -3,6 +3,7 @@ package com.zerosum.zerosum.account.repository;
 import com.zerosum.zerosum.account.domain.Account;
 import com.zerosum.zerosum.account.domain.AccountType;
 import com.zerosum.zerosum.common.Money;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
@@ -33,6 +34,12 @@ class AccountRepositoryTest {
 
 	@Autowired
 	private JdbcTemplate jdbcTemplate;
+
+	@BeforeEach
+	void startEmpty() {
+		// Other tests register users, which now opens accounts in the shared test database
+		accountRepository.deleteAllInBatch();
+	}
 
 	@Test
 	void savesAndFindsUserAccountByUserId() {
