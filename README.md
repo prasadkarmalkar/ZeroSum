@@ -37,12 +37,16 @@ Actuator) · PostgreSQL · springdoc-openapi (Swagger UI) · Lombok · Maven wra
 
 ### 2. Create the databases
 
-One for the app, one for the tests (the tests drop and recreate their schema on every run):
+One for the app, one for the tests. The tests drop and recreate their schema on every run, so their
+database's name must end in `_test`:
 
 ```bash
-psql -U postgres -c "CREATE DATABASE zerosum"
-psql -U postgres -c "CREATE DATABASE zerosum_test"
+psql -h localhost -U postgres -c "CREATE DATABASE zerosum"
+psql -h localhost -U postgres -c "CREATE DATABASE zerosum_test"
 ```
+
+If `psql` isn't found, it's in PostgreSQL's `bin` directory: with the macOS installer, for example,
+`export PATH="/Library/PostgreSQL/18/bin:$PATH"` (adjust the version), or use `createdb` the same way.
 
 The tables are created automatically on first start (Hibernate `ddl-auto`; see
 [Known trade-offs](#known-trade-offs)).
