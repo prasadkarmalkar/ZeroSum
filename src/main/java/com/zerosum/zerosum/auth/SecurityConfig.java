@@ -8,6 +8,9 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
+import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
 import org.springframework.security.web.SecurityFilterChain;
 
 @Configuration
@@ -22,17 +25,38 @@ public class SecurityConfig {
 	};
 
 	@Bean
-	public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+	public SecurityFilterChain securityFilterChain(HttpSecurity http, JwtDecoder jwtDecoder,
+			SecurityProblemHandler problemHandler) throws Exception {
 		http
 				// Token-based API with no browser forms, so CSRF protection and sessions are not needed
 				.csrf(AbstractHttpConfigurer::disable)
 				.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 				.authorizeHttpRequests(auth -> auth
 						.requestMatchers(PUBLIC_ENDPOINTS).permitAll()
-						// Only registration is public; the rest of /auth/** stays protected
-						.requestMatchers(HttpMethod.POST, "/auth/register").permitAll()
-						.anyRequest().authenticated());
+						.requestMatchers(HttpMethod.POST, "/auth/register", "/auth/login").permitAll()
+						.anyRequest().authenticated())
+				.oauth2ResourceServer(oauth2 -> oauth2
+						.jwt(jwt -> jwt.decoder(jwtDecoder)
+								.jwtAuthenticationConverter(jwtAuthenticationConverter()))
+						// Bad or expired tokens are rejected here...
+						.authenticationEntryPoint(problemHandler)
+						.accessDeniedHandler(problemHandler))
+				// ...and requests with no token at all here
+				.exceptionHandling(exceptions -> exceptions
+						.authenticationEntryPoint(problemHandler)
+						.accessDeniedHandler(problemHandler));
 		return http.build();
+	}
+
+	private JwtAuthenticationConverter jwtAuthenticationConverter() {
+		JwtGrantedAuthoritiesConverter authorities = new JwtGrantedAuthoritiesConverter();
+		authorities.setAuthoritiesClaimName("roles");
+		authorities.setAuthorityPrefix("ROLE_");
+
+		JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
+		converter.setJwtGrantedAuthoritiesConverter(authorities);
+		return converter;
+
 	}
 
 	/** Encodes passwords with BCrypt (default strength 10); hashes look like {@code $2a$10$...}. */

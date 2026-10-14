@@ -83,8 +83,8 @@ class AuthControllerTest {
 
 	@Test
 	void restOfAuthPathsStillRequireAuthentication() throws Exception {
-		mockMvc.perform(get("/auth/register")).andExpect(status().isForbidden());
-		mockMvc.perform(post("/auth/something-else")).andExpect(status().isForbidden());
+		mockMvc.perform(get("/auth/register")).andExpect(status().isUnauthorized());
+		mockMvc.perform(post("/auth/something-else")).andExpect(status().isUnauthorized());
 	}
 
 	private ResultActions register(String email, String password) throws Exception {

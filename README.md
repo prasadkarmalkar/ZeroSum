@@ -89,6 +89,32 @@ src/
 └── test/java/com/zerosum/zerosum/   # tests
 ```
 
+## Authentication
+
+1. `POST /auth/register` with `{"email", "password"}` creates a user (role `USER`).
+2. `POST /auth/login` with the same credentials returns a short-lived JWT:
+   `{"accessToken": "eyJ...", "tokenType": "Bearer", "expiresIn": 3600}`.
+3. Send it on every other request as `Authorization: Bearer <accessToken>`.
+   In Swagger UI, click **Authorize** and paste the token (without `Bearer `).
+
+Tokens are signed with RS256 (`jwt.private-key` / `jwt.public-key`) and valid for
+`jwt.access-token-ttl` (1 hour). A wrong password and an unknown email both return the same
+`401 INVALID_CREDENTIALS`, so the API never reveals which emails are registered.
+
+### Trade-off: no logout or revocation
+
+Access tokens are stateless: the server checks only the signature, issuer and expiry, and keeps
+no record of issued tokens. That keeps every request free of database lookups, but it means:
+
+- **There is no logout.** A client "logs out" by discarding its token; anyone who already copied
+  the token can keep using it until it expires.
+- **Changes don't apply until the token expires.** A demoted, disabled or deleted user keeps their
+  old role and access for up to 1 hour, and `/auth/me` reports what the token says.
+
+The 1-hour lifetime is the compromise between how often clients must log in again and how long a
+leaked or outdated token stays useful. Planned fix: short access tokens plus refresh tokens stored
+server-side (the reserved `INVALID_REFRESH_TOKEN` code), which can be revoked on logout.
+
 ## Error codes
 
 Every error response is an RFC 9457 `ProblemDetail` with an extra `errorCode` field.
@@ -124,11 +150,14 @@ Each exception extends `common.ApiException` and lives in its owning module's `e
 | Code                | Status | When                                                                      |
 |---------------------|--------|---------------------------------------------------------------------------|
 | `VALIDATION_FAILED` | 400    | Bean Validation failed; `errors` lists each `field` and its `message`    |
+| `UNAUTHORIZED`      | 401    | Missing, malformed, expired or wrongly signed bearer token                |
+| `ACCESS_DENIED`     | 403    | Valid token, but its role doesn't allow the request                       |
 | `INTERNAL_ERROR`    | 500    | Any unexpected exception; the stack trace is logged, never returned       |
 
 Spring MVC's own errors (unknown route, unsupported method, malformed JSON, …) keep Spring's
-standard 4xx `ProblemDetail` without an `errorCode`. Spring Security's 401/403 responses are
-produced by Spring Security, not by the exception handler.
+standard 4xx `ProblemDetail` without an `errorCode`. The 401 and 403 responses come from
+Spring Security (via `auth.SecurityProblemHandler`), not from the exception handler, and also
+carry the standard `WWW-Authenticate: Bearer …` header.
 
 ## Contributing
 

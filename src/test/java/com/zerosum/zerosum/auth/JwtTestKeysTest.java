@@ -2,6 +2,7 @@ package com.zerosum.zerosum.auth;
 
 import com.zerosum.zerosum.auth.repository.UserRepository;
 import com.zerosum.zerosum.auth.service.AuthService;
+import com.zerosum.zerosum.auth.service.TokenService;
 import com.zerosum.zerosum.auth.web.AccessToken;
 import com.zerosum.zerosum.auth.web.RegisterRequest;
 import com.zerosum.zerosum.auth.web.User;
@@ -31,6 +32,9 @@ class JwtTestKeysTest {
 	private AuthService authService;
 
 	@Autowired
+	private TokenService tokenService;
+
+	@Autowired
 	private JwtDecoder jwtDecoder;
 
 	@Autowired
@@ -48,7 +52,7 @@ class JwtTestKeysTest {
 		userRepository.deleteAll();
 		User user = authService.register(new RegisterRequest("jwt@example.com", "s3cret-Passw0rd"));
 
-		AccessToken token = authService.issueAccessToken(user);
+		AccessToken token = tokenService.issueAccessToken(user);
 		Jwt jwt = jwtDecoder.decode(token.value());
 
 		assertThat(jwt.getSubject()).isEqualTo(user.getId().toString());

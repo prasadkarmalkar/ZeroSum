@@ -1,25 +1,20 @@
 package com.zerosum.zerosum.auth.service;
 
-import com.nimbusds.jose.JWSHeader;
 import com.zerosum.zerosum.auth.exception.EmailAlreadyRegisteredException;
+import com.zerosum.zerosum.auth.exception.InvalidCredentialsException;
 import com.zerosum.zerosum.auth.repository.UserRepository;
 import com.zerosum.zerosum.auth.web.*;
 import com.zerosum.zerosum.common.event.UserRegisteredEvent;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.oauth2.jose.jws.SignatureAlgorithm;
-import org.springframework.security.oauth2.jwt.JwsHeader;
-import org.springframework.security.oauth2.jwt.JwtClaimsSet;
-import org.springframework.security.oauth2.jwt.JwtEncoder;
-import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Instant;
-import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Slf4j
@@ -30,8 +25,15 @@ public class AuthService {
 	private final UserRepository userRepository;
 	private final PasswordEncoder passwordEncoder;
 	private final ApplicationEventPublisher eventPublisher;
-	private final JwtEncoder jwtEncoder;
-	private final JWTProperty jwtProperty;
+	private final TokenService tokenService;
+
+	/** Hash of a random password, checked when the email is unknown; see {@link #login}. */
+	private String dummyPasswordHash;
+
+	@PostConstruct
+	void initDummyPasswordHash() {
+		dummyPasswordHash = passwordEncoder.encode(UUID.randomUUID().toString());
+	}
 
 	/**
 	 * Registers a new user with the {@link Role#USER} role and publishes a {@link UserRegisteredEvent}.
@@ -62,25 +64,27 @@ public class AuthService {
 		return user;
 	}
 
-	public AccessToken issueAccessToken(User user) {
-		Instant now = Instant.now();
-		Instant expiresAt = now.plus(jwtProperty.accessTokenTtl());
-		JwtClaimsSet claims = JwtClaimsSet.builder()
-				.issuer(jwtProperty.issuer())
-				.subject(user.getId().toString())
-				.issuedAt(now)
-				.expiresAt(expiresAt)
-				.id(UUID.randomUUID().toString())
-				.claim("email", user.getEmail())
-				.claim("roles", List.of(user.getRole().name()))
-				.build();
+	/**
+	 * Checks the credentials and issues an access token.
+	 *
+	 * @throws InvalidCredentialsException if the email is unknown or the password is wrong; the two cases
+	 *                                     are indistinguishable, so the response can't reveal which emails exist
+	 */
+	@Transactional(readOnly = true)
+	public LoginResponse login(LoginRequest request) {
+		String email = User.normalizeEmail(request.email());
+		Optional<User> user = userRepository.findByEmail(email);
 
-		JwsHeader header = JwsHeader.with(SignatureAlgorithm.RS256).build();
+		// Check a password even when the user doesn't exist, so both failures take the same time
+		String hash = user.map(User::getPasswordHash).orElse(dummyPasswordHash);
+		boolean passwordMatches = passwordEncoder.matches(request.password(), hash);
+		if (user.isEmpty() || !passwordMatches) {
+			throw new InvalidCredentialsException();
+		}
 
-		String token = jwtEncoder
-				.encode(JwtEncoderParameters.from(header, claims))
-				.getTokenValue();
-		return new AccessToken(token, expiresAt);
+		AccessToken token = tokenService.issueAccessToken(user.get());
+		log.info("User {} logged in", user.get().getId());
+		return LoginResponse.bearer(token.value(), tokenService.accessTokenTtl().toSeconds());
 	}
 
 }
