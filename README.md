@@ -125,7 +125,7 @@ Clients should branch on `errorCode`, not on `title` or `detail`, which are for 
   "type": "about:blank",
   "title": "Insufficient funds",
   "status": 422,
-  "detail": "Account 3f2c… has 5.00 INR available but 10.00 INR was requested",
+  "detail": "Account 42 has 5.00 INR available but 10.00 INR was requested",
   "errorCode": "INSUFFICIENT_FUNDS"
 }
 ```

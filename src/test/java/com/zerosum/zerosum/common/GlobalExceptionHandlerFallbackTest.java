@@ -13,7 +13,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.UUID;
 
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.containsString;
@@ -59,7 +58,7 @@ class GlobalExceptionHandlerFallbackTest {
 
 	}
 
-	private static final UUID ACCOUNT_ID = UUID.fromString("00000000-0000-0000-0000-000000000042");
+	private static final Long ACCOUNT_ID = 42L;
 
 	private final MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new TestController())
 			.setControllerAdvice(new GlobalExceptionHandler())
@@ -84,7 +83,7 @@ class GlobalExceptionHandlerFallbackTest {
 				.andExpect(jsonPath("$.title").value("Insufficient funds"))
 				.andExpect(jsonPath("$.errorCode").value("INSUFFICIENT_FUNDS"))
 				.andExpect(jsonPath("$.detail").value(
-						"Account 00000000-0000-0000-0000-000000000042 has 5.00 INR available but 10.00 INR was requested"));
+						"Account 42 has 5.00 INR available but 10.00 INR was requested"));
 	}
 
 	@Test

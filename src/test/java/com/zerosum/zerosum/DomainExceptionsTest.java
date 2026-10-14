@@ -14,7 +14,6 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
-import java.util.UUID;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -23,7 +22,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 /** Every domain exception from the README's "Error codes" table, with its expected status and code. */
 class DomainExceptionsTest {
 
-	private static final UUID ACCOUNT_ID = UUID.fromString("00000000-0000-0000-0000-000000000042");
+	private static final Long ACCOUNT_ID = 42L;
 
 	static Stream<Arguments> exceptions() {
 		return Stream.of(
