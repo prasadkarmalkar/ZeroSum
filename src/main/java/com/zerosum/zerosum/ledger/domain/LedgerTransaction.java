@@ -1,6 +1,7 @@
 package com.zerosum.zerosum.ledger.domain;
 
 import com.zerosum.zerosum.common.Money;
+import com.zerosum.zerosum.ledger.exception.LedgerInvariantViolationException;
 import com.zerosum.zerosum.ledger.exception.UnbalancedTransactionException;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -24,8 +25,10 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Currency;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * A group of {@link Entry entries} that move money between accounts and always sum to zero.
@@ -62,11 +65,21 @@ public class LedgerTransaction {
 	private List<Entry> entries = new ArrayList<>();
 
 	/**
-	 * Builds a transaction and its entries from the given lines.
+	 * Builds a transaction and its entries from the given lines, enforcing every posting rule.
+	 * This is the only place the rules live, so an invalid transaction can't exist even in memory:
+	 * <ol>
+	 *   <li>at least two entries</li>
+	 *   <li>no zero-amount entries</li>
+	 *   <li>all entries in one currency</li>
+	 *   <li>each account appears at most once</li>
+	 *   <li>entries sum to exactly zero</li>
+	 * </ol>
 	 *
-	 * @throws IllegalArgumentException      if there are fewer than two lines, a line is zero,
-	 *                                       the lines mix currencies, or the description is blank
-	 * @throws UnbalancedTransactionException if the lines don't sum to zero
+	 * @throws LedgerInvariantViolationException if any rule is broken ({@link UnbalancedTransactionException}
+	 *                                           for the last one); always a 500, since callers must never
+	 *                                           build an invalid posting
+	 * @throws NullPointerException              if type, description, lines or a line is null
+	 * @throws IllegalArgumentException          if the description is blank
 	 */
 	public static LedgerTransaction create(TransactionType type, String description, List<EntryLine> lines) {
 		Objects.requireNonNull(type, "type must not be null");
@@ -75,21 +88,12 @@ public class LedgerTransaction {
 		if (description.isBlank()) {
 			throw new IllegalArgumentException("description must not be blank");
 		}
-		if (lines.size() < 2) {
-			throw new IllegalArgumentException("A transaction needs at least two entries, got " + lines.size());
-		}
 
-		Currency currency = lines.getFirst().amount().currency();
-		Money sum = Money.zero(currency);
-		for (EntryLine line : lines) {
-			if (line.amount().isZero()) {
-				throw new IllegalArgumentException("Entry for account " + line.accountId() + " has a zero amount");
-			}
-			sum = sum.add(line.amount()); // throws on a currency mismatch
-		}
-		if (!sum.isZero()) {
-			throw new UnbalancedTransactionException(sum);
-		}
+		requireAtLeastTwoEntries(lines);
+		requireNoZeroAmounts(lines);
+		requireSingleCurrency(lines);
+		requireDistinctAccounts(lines);
+		requireSumOfZero(lines);
 
 		LedgerTransaction transaction = new LedgerTransaction();
 		transaction.type = type;
@@ -98,6 +102,52 @@ public class LedgerTransaction {
 			transaction.entries.add(new Entry(transaction, line.accountId(), line.amount()));
 		}
 		return transaction;
+	}
+
+	private static void requireAtLeastTwoEntries(List<EntryLine> lines) {
+		if (lines.size() < 2) {
+			throw new LedgerInvariantViolationException(
+					"A transaction needs at least two entries, got " + lines.size());
+		}
+	}
+
+	private static void requireNoZeroAmounts(List<EntryLine> lines) {
+		for (EntryLine line : lines) {
+			if (line.amount().isZero()) {
+				throw new LedgerInvariantViolationException(
+						"Entry for account " + line.accountId() + " has a zero amount");
+			}
+		}
+	}
+
+	private static void requireSingleCurrency(List<EntryLine> lines) {
+		Currency currency = lines.getFirst().amount().currency();
+		for (EntryLine line : lines) {
+			if (!line.amount().currency().equals(currency)) {
+				throw new LedgerInvariantViolationException(
+						"Entries mix currencies: " + currency + " and " + line.amount().currency());
+			}
+		}
+	}
+
+	private static void requireDistinctAccounts(List<EntryLine> lines) {
+		Set<Long> seen = new HashSet<>();
+		for (EntryLine line : lines) {
+			if (!seen.add(line.accountId())) {
+				throw new LedgerInvariantViolationException(
+						"Account " + line.accountId() + " appears in more than one entry");
+			}
+		}
+	}
+
+	private static void requireSumOfZero(List<EntryLine> lines) {
+		Money sum = Money.zero(lines.getFirst().amount().currency());
+		for (EntryLine line : lines) {
+			sum = sum.add(line.amount());
+		}
+		if (!sum.isZero()) {
+			throw new UnbalancedTransactionException(sum);
+		}
 	}
 
 	public List<Entry> getEntries() {

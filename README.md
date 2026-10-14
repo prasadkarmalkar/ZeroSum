@@ -143,7 +143,7 @@ Each exception extends `common.ApiException` and lives in its owning module's `e
 | `INSUFFICIENT_FUNDS`        | 422    | `InsufficientFundsException`       | `ledger`  | Source account balance is lower than the requested amount  |
 | `SELF_TRANSFER_NOT_ALLOWED` | 422    | `SelfTransferNotAllowedException`  | `ledger`  | Source and destination account are the same                |
 | `IDEMPOTENCY_KEY_REUSED`    | 409    | `IdempotencyKeyReusedException`    | `ledger`  | Idempotency key already used with a different request body |
-| `LEDGER_INVARIANT_VIOLATED` | 500    | `UnbalancedTransactionException`   | `ledger`  | A transaction's entries don't sum to zero (a bug on our side) |
+| `LEDGER_INVARIANT_VIOLATED` | 500    | `LedgerInvariantViolationException` (and its subclass `UnbalancedTransactionException`) | `ledger`  | A posting broke a ledger rule, e.g. entries don't sum to zero (a bug on our side) |
 
 ### Generic errors
 
